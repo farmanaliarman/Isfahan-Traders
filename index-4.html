@@ -1,0 +1,873 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Isfahan Traders</title>
+<script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,sans-serif;background:#FAFAF9;color:#1C1917}
+input,select,button{font-family:inherit}
+</style>
+</head>
+<body>
+<div id="root"><div style="padding:40px;text-align:center;color:#78716C">Loading…</div></div>
+<script>
+const{createElement:h,useState,useEffect,useCallback,useRef,StrictMode}=React;
+const{createRoot}=ReactDOM;
+const db=supabase.createClient(
+  "https://qljqfiyamrmrxvcrwopy.supabase.co",
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsanFmaXlhbXJtcnh2Y3J3b3B5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5NzY5NTcsImV4cCI6MjA5NzU1Mjk1N30.smMb5JbjU5qVg8c0lXIeRcNCJMc8vWjiZVEuNIAXzy0"
+);
+
+const today=()=>new Date().toISOString().slice(0,10);
+const fmt=n=>"Rs."+(+(n||0)).toLocaleString("en-IN",{maximumFractionDigits:0});
+const num=(n,d=2)=>{const v=+(n||0);return v%1===0?String(v):v.toFixed(d)};
+const daysAgo=s=>{const d=new Date(s+"T00:00:00"),n=new Date();n.setHours(0,0,0,0);return Math.round((n-d)/86400000)};
+const inRange=(s,days)=>{const d=daysAgo(s);return d>=0&&d<=days};
+
+const C={ink:"#1C1917",muted:"#78716C",border:"#E7E5E4",bg:"#FAFAF9",card:"#FFFFFF",accent:"#B45309",dark:"#92400E",good:"#059669",bad:"#DC2626",warn:"#D97706"};
+const s={
+  card:{background:"#fff",border:"1px solid #E7E5E4",borderRadius:12,padding:16},
+  btn:{background:"#B45309",color:"#fff",border:"none",borderRadius:8,padding:"8px 16px",fontSize:13,fontWeight:600,cursor:"pointer"},
+  del:{background:"#FFF1F2",color:"#DC2626",border:"1px solid #FECDD3",borderRadius:8,padding:"5px 10px",fontSize:12,fontWeight:600,cursor:"pointer"},
+  inp:{border:"1px solid #E7E5E4",borderRadius:8,padding:"7px 10px",fontSize:13,width:"100%",outline:"none"},
+  sel:{border:"1px solid #E7E5E4",borderRadius:8,padding:"7px 10px",fontSize:13,width:"100%",outline:"none",background:"#fff"},
+  lbl:{fontSize:11,fontWeight:700,letterSpacing:"0.05em",textTransform:"uppercase",color:"#78716C",display:"block",marginBottom:4},
+  th:{textAlign:"left",fontSize:11,fontWeight:700,letterSpacing:"0.05em",textTransform:"uppercase",color:"#78716C",padding:"8px 12px",background:"#FAFAF9",borderBottom:"1px solid #E7E5E4"},
+  td:{padding:"8px 12px",fontSize:13,borderBottom:"1px solid #E7E5E4"},
+};
+
+const Inp=p=>h("input",Object.assign({style:s.inp},p));
+const Sel=({children,...p})=>h("select",Object.assign({style:s.sel},p),children);
+const Btn=({children,style:sx,...p})=>h("button",Object.assign({style:Object.assign({},s.btn,sx)},p),children);
+const Del=({children,...p})=>h("button",Object.assign({style:s.del},p),children);
+const Lbl=({children})=>h("label",{style:s.lbl},children);
+const Tag=({children})=>h("span",{style:{background:"#F5F5F4",border:"1px solid #E7E5E4",borderRadius:99,padding:"2px 8px",fontSize:11,fontWeight:600,color:"#78716C"}},children);
+const Grid=({cols,children})=>h("div",{style:{display:"grid",gridTemplateColumns:"repeat("+(cols||2)+",1fr)",gap:12}},children);
+const Fld=({label,children})=>h("div",null,h("label",{style:s.lbl},label),children);
+const Card=({title,value,sub,green,red})=>h("div",{style:Object.assign({},s.card,{borderColor:green?"#A7F3D0":red?"#FECACA":"#E7E5E4",background:green?"#F0FDF4":red?"#FFF5F5":"#fff"})},
+  h("div",{style:{fontSize:11,fontWeight:700,textTransform:"uppercase",color:"#78716C"}},title),
+  h("div",{style:{fontSize:22,fontWeight:800,color:green?"#059669":red?"#DC2626":"#1C1917",fontFamily:"monospace",marginTop:4}},value),
+  sub&&h("div",{style:{fontSize:11,color:"#78716C",marginTop:2}},sub)
+);
+
+function Tbl({heads,rows,empty}){
+  return h("div",{style:{overflowX:"auto",border:"1px solid #E7E5E4",borderRadius:12}},
+    h("table",{style:{width:"100%",borderCollapse:"collapse"}},
+      h("thead",null,h("tr",null,...(heads||[]).map(hd=>h("th",{key:hd,style:s.th},hd)))),
+      h("tbody",null,...(rows||[]))
+    ),
+    (!rows||!rows.length)&&h("div",{style:{textAlign:"center",padding:32,color:"#78716C",fontSize:13}},empty||"No data yet.")
+  );
+}
+
+function Toast({msg,type}){
+  if(!msg)return null;
+  return h("div",{style:{position:"fixed",bottom:20,right:20,background:type==="error"?"#DC2626":"#059669",color:"#fff",padding:"10px 18px",borderRadius:10,fontSize:13,fontWeight:600,zIndex:9999}},msg);
+}
+
+const TABS=["Dashboard","Raw Materials","Products","Labor","Material Issued","Production","Advances","Labor Ledger","Purchases","Suppliers","Customers","Sales","Payments","Supplier Payments","Expenses","Reports","Settings"];
+
+function App(){
+  const[tab,setTab]=useState("Dashboard");
+  const[data,setData]=useState({});
+  const[loading,setLoading]=useState(true);
+  const[toast,setToast]=useState(null);
+  const timer=useRef(null);
+
+  const showToast=useCallback((msg,type)=>{
+    setToast({msg,type:"ok",...(type?{type}:{})});
+    clearTimeout(timer.current);
+    timer.current=setTimeout(()=>setToast(null),2800);
+  },[]);
+
+  const load=useCallback(async()=>{
+    try{
+      const tbls=["settings","colors","categories","raw_materials","suppliers","purchases","products","labor","material_issued","production","advances","customers","sales","payments","supplier_payments","expenses"];
+      const res=await Promise.all(tbls.map(t=>db.from(t).select("*").order("id",{ascending:true,nullsFirst:true})));
+      const d={};
+      tbls.forEach((t,i)=>{d[t]=res[i].data||[]});
+      d.settings=d.settings[0]||{business_name:"Isfahan Traders",cash_in_hand:0};
+      setData(d);
+    }catch(err){showToast("Error: "+err.message,"error");}
+    setLoading(false);
+  },[showToast]);
+
+  useEffect(()=>{load();},[load]);
+
+  useEffect(()=>{
+    const tbls=["settings","categories","raw_materials","suppliers","purchases","products","labor","material_issued","production","advances","customers","sales","payments","supplier_payments","expenses"];
+    const subs=tbls.map(t=>db.channel("rt_"+t).on("postgres_changes",{event:"*",schema:"public",table:t},()=>load()).subscribe());
+    return()=>subs.forEach(sub=>db.removeChannel(sub));
+  },[load]);
+
+  const refresh=useCallback(async fn=>{
+    try{await fn();showToast("Saved");await load();}
+    catch(err){showToast(err.message,"error");}
+  },[load,showToast]);
+
+  if(loading)return h("div",{style:{padding:48,textAlign:"center",color:"#78716C"}},"Loading…");
+
+  const tp={data,db,refresh,showToast};
+  const pages={
+    "Dashboard":DashTab,"Raw Materials":RMTab,"Products":ProdTab,"Labor":LaborTab,
+    "Material Issued":MatIssuedTab,"Production":ProdTab2,"Advances":AdvTab,
+    "Labor Ledger":LedgerTab,"Purchases":PurchTab,"Suppliers":SuppTab,
+    "Customers":CustTab,"Sales":SalesTab,"Payments":PayTab,
+    "Supplier Payments":SPayTab,"Expenses":ExpTab,"Reports":RepTab,"Settings":SettTab
+  };
+  const Page=pages[tab]||DashTab;
+
+  return h("div",{style:{minHeight:"100vh",background:"#FAFAF9"}},
+    h("div",{style:{background:"#92400E",color:"#fff",padding:"12px 20px",display:"flex",alignItems:"center",gap:12,position:"sticky",top:0,zIndex:100}},
+      h("div",{style:{width:36,height:36,borderRadius:"50%",background:"#B45309",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:900,fontSize:14}},"IT"),
+      h("div",null,
+        h("div",{style:{fontWeight:800,fontSize:16}},data.settings.business_name),
+        h("div",{style:{fontSize:11,opacity:0.7}},"Shoe Upper Ledger · Live sync")
+      )
+    ),
+    h("div",{style:{background:"#fff",borderBottom:"1px solid #E7E5E4",overflowX:"auto",position:"sticky",top:60,zIndex:99}},
+      h("div",{style:{display:"flex",gap:2,padding:"8px 12px",minWidth:"max-content"}},
+        ...TABS.map(t=>h("button",{key:t,onClick:()=>setTab(t),style:{padding:"6px 12px",borderRadius:20,border:"none",fontSize:12,fontWeight:600,cursor:"pointer",whiteSpace:"nowrap",background:tab===t?"#B45309":"transparent",color:tab===t?"#fff":"#78716C"}},t))
+      )
+    ),
+    h("div",{style:{maxWidth:1100,margin:"0 auto",padding:"20px 16px"}},h(Page,tp)),
+    h(Toast,toast||{msg:null})
+  );
+}
+
+function DashTab({data}){
+  const{sales=[],production=[],purchases=[],raw_materials=[],products=[]}=data;
+  const rev=sales.filter(r=>inRange(r.date,29)).reduce((s,r)=>s++(r.net_total||0),0);
+  const rawVal=raw_materials.reduce((s,r)=>s++(r.opening_stock||0)*+(r.cost_per_unit||0),0);
+  const custBal=(data.customers||[]).reduce((s,c)=>{
+    const sold=sales.filter(r=>r.customer_id===c.id).reduce((a,r)=>a++(r.net_total||0),0);
+    const paid=(data.payments||[]).filter(r=>r.customer_id===c.id).reduce((a,r)=>a++(r.amount||0),0);
+    return s++(c.opening_balance||0)+sold-paid;
+  },0);
+  const suppBal=(data.suppliers||[]).reduce((s,sup)=>{
+    const b=purchases.filter(r=>r.supplier_id===sup.id).reduce((a,r)=>a++(r.total_value||0),0);
+    const p=(data.supplier_payments||[]).filter(r=>r.supplier_id===sup.id).reduce((a,r)=>a++(r.amount||0),0);
+    return s++(sup.opening_balance||0)+b-p;
+  },0);
+  const nwc=rawVal+custBal-suppBal++(data.settings&&data.settings.cash_in_hand||0);
+  return h("div",{style:{display:"flex",flexDirection:"column",gap:20}},
+    h("h2",{style:{fontSize:18,fontWeight:700,color:"#92400E"}},data.settings.business_name+" — Overview"),
+    h(Grid,{cols:2},
+      h(Card,{title:"Revenue (30 days)",value:fmt(rev),sub:sales.filter(r=>inRange(r.date,29)).length+" sales"}),
+      h(Card,{title:"Customer Receivable",value:fmt(custBal),green:custBal>0}),
+      h(Card,{title:"Supplier Payable",value:fmt(suppBal),red:suppBal>0}),
+      h(Card,{title:"Net Working Capital",value:fmt(nwc),green:nwc>0,sub:"Stock + Recv - Payable + Cash"})
+    ),
+    h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}},
+      h("div",{style:s.card},
+        h("div",{style:{fontWeight:700,marginBottom:10}},"Raw Material Stock"),
+        ...raw_materials.filter(r=>+(r.opening_stock||0)>0).slice(0,8).map(r=>
+          h("div",{key:r.id,style:{display:"flex",justifyContent:"space-between",fontSize:13,padding:"4px 0",borderBottom:"1px solid #E7E5E4"}},
+            h("span",null,r.display_name),h("span",{style:{fontFamily:"monospace"}},r.opening_stock+" "+r.unit)
+          )
+        ),
+        !raw_materials.filter(r=>+(r.opening_stock||0)>0).length&&h("div",{style:{color:"#78716C",fontSize:13}},"No stock yet.")
+      ),
+      h("div",{style:s.card},
+        h("div",{style:{fontWeight:700,marginBottom:10}},"Products in Stock"),
+        ...products.map(p=>{
+          const produced=(production||[]).filter(r=>r.product_id===p.id).reduce((sum,r)=>sum++(r.quantity||0),0);
+          const sold=sales.filter(r=>r.product_id===p.id).reduce((sum,r)=>sum++(r.quantity||0),0);
+          const stock=+(p.opening_stock||0)+produced-sold;
+          return h("div",{key:p.id,style:{display:"flex",justifyContent:"space-between",fontSize:13,padding:"4px 0",borderBottom:"1px solid #E7E5E4"}},
+            h("span",null,p.name," ",h(Tag,null,p.color)),
+            h("span",{style:{fontFamily:"monospace",color:stock<=0?"#DC2626":"#1C1917"}},stock+" doz")
+          );
+        }),
+        !products.length&&h("div",{style:{color:"#78716C",fontSize:13}},"No products yet.")
+      )
+    )
+  );
+}
+
+function RMTab({data,db,refresh}){
+  const[form,setForm]=useState({material_name:"Ragzine",color:"Black",unit:"meter",opening_stock:0,cost_per_unit:0,reorder_level:30});
+  const rms=data.raw_materials||[];
+  const COLORS=["Black","Green","Brown","Mustard","Cream","Maroon","Pink","Zink","Purple","Grey","No Color"];
+  const save=()=>refresh(async()=>{
+    const dn=form.color==="No Color"?form.material_name:form.material_name+" - "+form.color;
+    const{error}=await db.from("raw_materials").insert([Object.assign({},form,{display_name:dn})]);
+    if(error)throw error;
+  });
+  const del=id=>refresh(async()=>{const{error}=await db.from("raw_materials").delete().eq("id",id);if(error)throw error;});
+  const upd=(id,f,v)=>refresh(async()=>{const{error}=await db.from("raw_materials").update({[f]:v}).eq("id",id);if(error)throw error;});
+  const sf=(label,field,type,opts)=>h(Fld,{label},
+    opts?h(Sel,{value:form[field],onChange:ev=>setForm(Object.assign({},form,{[field]:ev.target.value}))},
+      ...opts.map(o=>h("option",{key:o},o))
+    ):h(Inp,{type:type||"text",value:form[field],onChange:ev=>setForm(Object.assign({},form,{[field]:type==="number"?+ev.target.value:ev.target.value}))})
+  );
+  return h("div",{style:{display:"flex",flexDirection:"column",gap:16}},
+    h("h2",{style:{fontSize:18,fontWeight:700,color:"#92400E"}},"Raw Materials"),
+    h("div",{style:Object.assign({},s.card,{display:"flex",flexDirection:"column",gap:10})},
+      h("div",{style:{fontWeight:700}},"Add Material"),
+      h(Grid,{cols:3},sf("Name","material_name"),sf("Color","color","text",COLORS),sf("Unit","unit"),sf("Opening Stock","opening_stock","number"),sf("Cost/Unit (Rs.)","cost_per_unit","number"),sf("Reorder Level","reorder_level","number")),
+      h(Btn,{onClick:save},"+ Add")
+    ),
+    h(Tbl,{heads:["Name","Color","Unit","Opening Stock","Cost/Unit","Stock Value",""],
+      rows:rms.map(r=>h("tr",{key:r.id},
+        h("td",{style:s.td},r.material_name),h("td",{style:s.td},h(Tag,null,r.color)),h("td",{style:s.td},r.unit),
+        h("td",{style:s.td},h(Inp,{type:"number",defaultValue:r.opening_stock,onBlur:ev=>upd(r.id,"opening_stock",+ev.target.value),style:Object.assign({},s.inp,{width:90})})),
+        h("td",{style:s.td},h(Inp,{type:"number",defaultValue:r.cost_per_unit,onBlur:ev=>upd(r.id,"cost_per_unit",+ev.target.value),style:Object.assign({},s.inp,{width:90})})),
+        h("td",{style:Object.assign({},s.td,{fontFamily:"monospace"})},fmt(+(r.opening_stock||0)*+(r.cost_per_unit||0))),
+        h("td",{style:s.td},h(Del,{onClick:()=>del(r.id)},"X"))
+      ))
+    })
+  );
+}
+
+function ProdTab({data,db,refresh}){
+  const{products=[],categories=[],production=[],sales=[]}=data;
+  const[form,setForm]=useState({name:"01",category:"Adult",color:"Black",selling_price:0,opening_stock:0});
+  const COLORS=["Black","Green","Brown","Mustard","Cream","Maroon","Pink","Zink","Purple","Grey"];
+  const save=()=>refresh(async()=>{const{error}=await db.from("products").insert([form]);if(error)throw error;});
+  const del=id=>refresh(async()=>{const{error}=await db.from("products").delete().eq("id",id);if(error)throw error;});
+  const upd=(id,f,v)=>refresh(async()=>{const{error}=await db.from("products").update({[f]:v}).eq("id",id);if(error)throw error;});
+  const stock=p=>+(p.opening_stock||0)+production.filter(r=>r.product_id===p.id).reduce((s,r)=>s++(r.quantity||0),0)-sales.filter(r=>r.product_id===p.id).reduce((s,r)=>s++(r.quantity||0),0);
+  return h("div",{style:{display:"flex",flexDirection:"column",gap:16}},
+    h("h2",{style:{fontSize:18,fontWeight:700,color:"#92400E"}},"Products"),
+    h("div",{style:Object.assign({},s.card,{display:"flex",flexDirection:"column",gap:10})},
+      h("div",{style:{fontWeight:700}},"Add Product"),
+      h(Grid,{cols:3},
+        h(Fld,{label:"Name"},h(Inp,{value:form.name,onChange:ev=>setForm(Object.assign({},form,{name:ev.target.value}))})),
+        h(Fld,{label:"Category"},h(Sel,{value:form.category,onChange:ev=>setForm(Object.assign({},form,{category:ev.target.value}))},
+          ...(categories||[]).map(c=>h("option",{key:c.id},c.name)))),
+        h(Fld,{label:"Color"},h(Sel,{value:form.color,onChange:ev=>setForm(Object.assign({},form,{color:ev.target.value}))},
+          ...COLORS.map(c=>h("option",{key:c},c)))),
+        h(Fld,{label:"Selling Price (Rs.)"},h(Inp,{type:"number",value:form.selling_price,onChange:ev=>setForm(Object.assign({},form,{selling_price:+ev.target.value}))})),
+        h(Fld,{label:"Opening Stock"},h(Inp,{type:"number",value:form.opening_stock,onChange:ev=>setForm(Object.assign({},form,{opening_stock:+ev.target.value}))}))
+      ),
+      h(Btn,{onClick:save},"+ Add Product")
+    ),
+    h(Tbl,{heads:["Name","Category","Color","Selling Price","Opening","Stock",""],
+      rows:products.map(p=>h("tr",{key:p.id},
+        h("td",{style:s.td},p.name),h("td",{style:s.td},h(Tag,null,p.category)),h("td",{style:s.td},h(Tag,null,p.color)),
+        h("td",{style:s.td},h(Inp,{type:"number",defaultValue:p.selling_price,onBlur:ev=>upd(p.id,"selling_price",+ev.target.value),style:Object.assign({},s.inp,{width:100})})),
+        h("td",{style:s.td},h(Inp,{type:"number",defaultValue:p.opening_stock,onBlur:ev=>upd(p.id,"opening_stock",+ev.target.value),style:Object.assign({},s.inp,{width:80})})),
+        h("td",{style:Object.assign({},s.td,{fontFamily:"monospace",fontWeight:700,color:stock(p)<=0?"#DC2626":"#1C1917"})},stock(p)),
+        h("td",{style:s.td},h(Del,{onClick:()=>del(p.id)},"X"))
+      ))
+    })
+  );
+}
+
+function LaborTab({data,db,refresh}){
+  const{labor=[],categories=[]}=data;
+  const aRate=(categories.find(c=>c.name==="Adult")||{}).wage_rate||30;
+  const kRate=(categories.find(c=>c.name==="Kids")||{}).wage_rate||20;
+  const[form,setForm]=useState({name:"",phone:"",adult_wage_per_pc:aRate,kids_wage_per_pc:kRate,opening_balance_payable:0});
+  const save=()=>refresh(async()=>{if(!form.name)throw new Error("Name required");const{error}=await db.from("labor").insert([form]);if(error)throw error;});
+  const del=id=>refresh(async()=>{const{error}=await db.from("labor").delete().eq("id",id);if(error)throw error;});
+  const upd=(id,f,v)=>refresh(async()=>{const{error}=await db.from("labor").update({[f]:v}).eq("id",id);if(error)throw error;});
+  return h("div",{style:{display:"flex",flexDirection:"column",gap:16}},
+    h("h2",{style:{fontSize:18,fontWeight:700,color:"#92400E"}},"Labor Roster"),
+    h("div",{style:Object.assign({},s.card,{display:"flex",flexDirection:"column",gap:10})},
+      h("div",{style:{fontWeight:700}},"Add Worker"),
+      h(Grid,{cols:3},
+        h(Fld,{label:"Name"},h(Inp,{value:form.name,onChange:ev=>setForm(Object.assign({},form,{name:ev.target.value}))})),
+        h(Fld,{label:"Phone"},h(Inp,{value:form.phone,onChange:ev=>setForm(Object.assign({},form,{phone:ev.target.value}))})),
+        h(Fld,{label:"Adult Wage/pc"},h(Inp,{type:"number",value:form.adult_wage_per_pc,onChange:ev=>setForm(Object.assign({},form,{adult_wage_per_pc:+ev.target.value}))})),
+        h(Fld,{label:"Kids Wage/pc"},h(Inp,{type:"number",value:form.kids_wage_per_pc,onChange:ev=>setForm(Object.assign({},form,{kids_wage_per_pc:+ev.target.value}))})),
+        h(Fld,{label:"Opening Balance (Rs.)"},h(Inp,{type:"number",value:form.opening_balance_payable,onChange:ev=>setForm(Object.assign({},form,{opening_balance_payable:+ev.target.value}))}))
+      ),
+      h(Btn,{onClick:save},"+ Add Worker")
+    ),
+    h(Tbl,{heads:["Name","Phone","Adult/pc","Kids/pc","Opening",""],
+      rows:labor.map(l=>h("tr",{key:l.id},
+        h("td",{style:s.td},l.name),h("td",{style:s.td},l.phone),
+        h("td",{style:s.td},h(Inp,{type:"number",defaultValue:l.adult_wage_per_pc,onBlur:ev=>upd(l.id,"adult_wage_per_pc",+ev.target.value),style:Object.assign({},s.inp,{width:80})})),
+        h("td",{style:s.td},h(Inp,{type:"number",defaultValue:l.kids_wage_per_pc,onBlur:ev=>upd(l.id,"kids_wage_per_pc",+ev.target.value),style:Object.assign({},s.inp,{width:80})})),
+        h("td",{style:s.td},h(Inp,{type:"number",defaultValue:l.opening_balance_payable,onBlur:ev=>upd(l.id,"opening_balance_payable",+ev.target.value),style:Object.assign({},s.inp,{width:100})})),
+        h("td",{style:s.td},h(Del,{onClick:()=>del(l.id)},"X"))
+      ))
+    })
+  );
+}
+
+function MatIssuedTab({data,db,refresh}){
+  const{labor=[],raw_materials=[],material_issued=[]}=data;
+  const[form,setForm]=useState({date:today(),labor_id:"",material_id:"",quantity:0});
+  const save=()=>refresh(async()=>{
+    if(!form.labor_id||!form.material_id)throw new Error("Pick worker and material");
+    const{error}=await db.from("material_issued").insert([Object.assign({},form,{labor_id:+form.labor_id,material_id:+form.material_id})]);
+    if(error)throw error;
+  });
+  const del=id=>refresh(async()=>{const{error}=await db.from("material_issued").delete().eq("id",id);if(error)throw error;});
+  return h("div",{style:{display:"flex",flexDirection:"column",gap:16}},
+    h("h2",{style:{fontSize:18,fontWeight:700,color:"#92400E"}},"Material Issued to Labor"),
+    h("div",{style:Object.assign({},s.card,{display:"flex",flexDirection:"column",gap:10})},
+      h(Grid,{cols:2},
+        h(Fld,{label:"Date"},h(Inp,{type:"date",value:form.date,onChange:ev=>setForm(Object.assign({},form,{date:ev.target.value}))})),
+        h(Fld,{label:"Worker"},h(Sel,{value:form.labor_id,onChange:ev=>setForm(Object.assign({},form,{labor_id:ev.target.value}))},
+          h("option",{value:""},"-- pick worker --"),
+          ...labor.map(l=>h("option",{key:l.id,value:l.id},l.name)))),
+        h(Fld,{label:"Material"},h(Sel,{value:form.material_id,onChange:ev=>setForm(Object.assign({},form,{material_id:ev.target.value}))},
+          h("option",{value:""},"-- pick material --"),
+          ...raw_materials.map(r=>h("option",{key:r.id,value:r.id},r.display_name)))),
+        h(Fld,{label:"Quantity"},h(Inp,{type:"number",value:form.quantity,onChange:ev=>setForm(Object.assign({},form,{quantity:+ev.target.value}))}))
+      ),
+      h(Btn,{onClick:save},"+ Issue")
+    ),
+    h(Tbl,{heads:["Date","Worker","Material","Qty",""],
+      rows:material_issued.slice().reverse().map(r=>{
+        const l=labor.find(x=>x.id===r.labor_id);
+        const m=raw_materials.find(x=>x.id===r.material_id);
+        return h("tr",{key:r.id},
+          h("td",{style:s.td},r.date),h("td",{style:s.td},(l||{}).name||"?"),
+          h("td",{style:s.td},(m||{}).display_name||"?"),
+          h("td",{style:Object.assign({},s.td,{fontFamily:"monospace"})},r.quantity),
+          h("td",{style:s.td},h(Del,{onClick:()=>del(r.id)},"X"))
+        );
+      })
+    })
+  );
+}
+
+function ProdTab2({data,db,refresh}){
+  const{labor=[],products=[],production=[],categories=[]}=data;
+  const[form,setForm]=useState({date:today(),labor_id:"",product_id:"",quantity:0});
+  const save=()=>refresh(async()=>{
+    if(!form.labor_id||!form.product_id||!+form.quantity)throw new Error("Fill all fields");
+    const lid=+form.labor_id,pid=+form.product_id;
+    const prod=products.find(p=>p.id===pid)||{};
+    const worker=labor.find(l=>l.id===lid)||{};
+    const cat=categories.find(c=>c.name===prod.category)||{};
+    const qty=+form.quantity;
+    const wage=qty*(prod.category==="Adult"?+(worker.adult_wage_per_pc||0):+(worker.kids_wage_per_pc||0));
+    const{error}=await db.from("production").insert([{
+      date:form.date,labor_id:lid,product_id:pid,quantity:qty,wage_earned:wage,
+      ragzine_used:qty*+(cat.ragzine_per_pc||0),mash_used:qty*+(cat.mash_per_pc||0),
+      daimod_used:qty*+(cat.daimod_per_pc||0),naki_feeta_used:qty*+(cat.naki_feeta_per_pc||0),
+      pipe_used:qty*+(cat.pipe_per_pc||0)
+    }]);
+    if(error)throw error;
+  });
+  const del=id=>refresh(async()=>{const{error}=await db.from("production").delete().eq("id",id);if(error)throw error;});
+  return h("div",{style:{display:"flex",flexDirection:"column",gap:16}},
+    h("h2",{style:{fontSize:18,fontWeight:700,color:"#92400E"}},"Production"),
+    h("div",{style:Object.assign({},s.card,{display:"flex",flexDirection:"column",gap:10})},
+      h(Grid,{cols:2},
+        h(Fld,{label:"Date"},h(Inp,{type:"date",value:form.date,onChange:ev=>setForm(Object.assign({},form,{date:ev.target.value}))})),
+        h(Fld,{label:"Worker"},h(Sel,{value:form.labor_id,onChange:ev=>setForm(Object.assign({},form,{labor_id:ev.target.value}))},
+          h("option",{value:""},"-- pick worker --"),
+          ...labor.map(l=>h("option",{key:l.id,value:l.id},l.name)))),
+        h(Fld,{label:"Product"},h(Sel,{value:form.product_id,onChange:ev=>setForm(Object.assign({},form,{product_id:ev.target.value}))},
+          h("option",{value:""},"-- pick product --"),
+          ...products.map(p=>h("option",{key:p.id,value:p.id},p.name+" ("+p.category+" - "+p.color+")")))),
+        h(Fld,{label:"Quantity (dozens)"},h(Inp,{type:"number",value:form.quantity,onChange:ev=>setForm(Object.assign({},form,{quantity:+ev.target.value}))}))
+      ),
+      h(Btn,{onClick:save},"+ Log Production")
+    ),
+    h(Tbl,{heads:["Date","Worker","Product","Qty","Wage","Ragzine","Mash","Daimod","Naki Feeta","Pipe",""],
+      rows:production.slice().reverse().map(r=>{
+        const l=labor.find(x=>x.id===r.labor_id)||{};
+        const p=products.find(x=>x.id===r.product_id)||{};
+        return h("tr",{key:r.id},
+          h("td",{style:s.td},r.date),h("td",{style:s.td},l.name||"?"),
+          h("td",{style:s.td},p.name||"?"," ",h(Tag,null,p.color)),
+          h("td",{style:Object.assign({},s.td,{fontFamily:"monospace"})},r.quantity),
+          h("td",{style:Object.assign({},s.td,{fontFamily:"monospace",color:"#059669"})},fmt(r.wage_earned)),
+          h("td",{style:Object.assign({},s.td,{fontFamily:"monospace"})},num(r.ragzine_used)),
+          h("td",{style:Object.assign({},s.td,{fontFamily:"monospace"})},num(r.mash_used)),
+          h("td",{style:Object.assign({},s.td,{fontFamily:"monospace"})},num(r.daimod_used)),
+          h("td",{style:Object.assign({},s.td,{fontFamily:"monospace"})},num(r.naki_feeta_used)),
+          h("td",{style:Object.assign({},s.td,{fontFamily:"monospace"})},num(r.pipe_used)),
+          h("td",{style:s.td},h(Del,{onClick:()=>del(r.id)},"X"))
+        );
+      })
+    })
+  );
+}
+
+function AdvTab({data,db,refresh}){
+  const{labor=[],advances=[]}=data;
+  const[form,setForm]=useState({date:today(),labor_id:"",amount:0,note:""});
+  const save=()=>refresh(async()=>{
+    if(!form.labor_id)throw new Error("Pick worker");
+    const{error}=await db.from("advances").insert([Object.assign({},form,{labor_id:+form.labor_id,amount:+form.amount})]);
+    if(error)throw error;
+  });
+  const del=id=>refresh(async()=>{const{error}=await db.from("advances").delete().eq("id",id);if(error)throw error;});
+  return h("div",{style:{display:"flex",flexDirection:"column",gap:16}},
+    h("h2",{style:{fontSize:18,fontWeight:700,color:"#92400E"}},"Advances to Labor"),
+    h("div",{style:Object.assign({},s.card,{display:"flex",flexDirection:"column",gap:10})},
+      h(Grid,{cols:2},
+        h(Fld,{label:"Date"},h(Inp,{type:"date",value:form.date,onChange:ev=>setForm(Object.assign({},form,{date:ev.target.value}))})),
+        h(Fld,{label:"Worker"},h(Sel,{value:form.labor_id,onChange:ev=>setForm(Object.assign({},form,{labor_id:ev.target.value}))},
+          h("option",{value:""},"-- pick worker --"),
+          ...labor.map(l=>h("option",{key:l.id,value:l.id},l.name)))),
+        h(Fld,{label:"Amount (Rs.)"},h(Inp,{type:"number",value:form.amount,onChange:ev=>setForm(Object.assign({},form,{amount:+ev.target.value}))})),
+        h(Fld,{label:"Note"},h(Inp,{value:form.note,onChange:ev=>setForm(Object.assign({},form,{note:ev.target.value}))}))
+      ),
+      h(Btn,{onClick:save},"+ Add Advance")
+    ),
+    h(Tbl,{heads:["Date","Worker","Amount","Note",""],
+      rows:advances.slice().reverse().map(r=>{
+        const l=labor.find(x=>x.id===r.labor_id)||{};
+        return h("tr",{key:r.id},
+          h("td",{style:s.td},r.date),h("td",{style:s.td},l.name||"?"),
+          h("td",{style:Object.assign({},s.td,{fontFamily:"monospace"})},fmt(r.amount)),
+          h("td",{style:s.td},r.note),
+          h("td",{style:s.td},h(Del,{onClick:()=>del(r.id)},"X"))
+        );
+      })
+    })
+  );
+}
+
+function LedgerTab({data}){
+  const{labor=[],production=[],advances=[],material_issued=[],raw_materials=[]}=data;
+  const[sel,setSel]=useState(null);
+  const worker=labor.find(l=>l.id===sel);
+  const wProd=production.filter(r=>r.labor_id===sel);
+  const wAdv=advances.filter(r=>r.labor_id===sel);
+  const wIssued=material_issued.filter(r=>r.labor_id===sel);
+  const totalWage=+(worker&&worker.opening_balance_payable||0)+wProd.reduce((s,r)=>s++(r.wage_earned||0),0);
+  const totalAdv=wAdv.reduce((s,r)=>s++(r.amount||0),0);
+  const net=totalWage-totalAdv;
+  const matBal=raw_materials.map(rm=>{
+    const issued=wIssued.filter(r=>r.material_id===rm.id).reduce((s,r)=>s++(r.quantity||0),0);
+    let consumed=0;
+    wProd.forEach(pr=>{
+      const pp=(data.products||[]).find(p=>p.id===pr.product_id)||{};
+      if(rm.material_name==="Ragzine"&&pp.color===rm.color)consumed+=+(pr.ragzine_used||0);
+      if(rm.material_name==="Mash"&&pp.color===rm.color)consumed+=+(pr.mash_used||0);
+      if(rm.material_name==="Daimod")consumed+=+(pr.daimod_used||0);
+      if(rm.material_name==="Naki Feeta")consumed+=+(pr.naki_feeta_used||0);
+      if(rm.material_name==="Pipe")consumed+=+(pr.pipe_used||0);
+    });
+    return Object.assign({},rm,{issued,consumed,balance:issued-consumed});
+  }).filter(r=>r.issued>0||r.balance!==0);
+  return h("div",{style:{display:"flex",flexDirection:"column",gap:16}},
+    h("h2",{style:{fontSize:18,fontWeight:700,color:"#92400E"}},"Labor Ledger"),
+    h("div",{style:{display:"flex",gap:8,flexWrap:"wrap"}},
+      ...labor.map(l=>h("button",{key:l.id,onClick:()=>setSel(l.id===sel?null:l.id),
+        style:{padding:"6px 14px",borderRadius:20,border:"1px solid #E7E5E4",background:sel===l.id?"#B45309":"#fff",color:sel===l.id?"#fff":"#1C1917",fontSize:13,fontWeight:600,cursor:"pointer"}},l.name))
+    ),
+    worker&&h("div",{style:{display:"flex",flexDirection:"column",gap:16}},
+      h("div",{style:{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}},
+        h(Card,{title:"Wage Earned",value:fmt(totalWage),green:true}),
+        h(Card,{title:"Advances",value:fmt(totalAdv),red:totalAdv>0}),
+        h(Card,{title:"Net Payable",value:fmt(net),green:net>0,red:net<0})
+      ),
+      h("div",{style:s.card},
+        h("div",{style:{fontWeight:700,marginBottom:10}},"Material in Hand"),
+        matBal.length?h(Tbl,{heads:["Material","Color","Issued","Consumed","Balance"],
+          rows:matBal.map(r=>h("tr",{key:r.id},
+            h("td",{style:s.td},r.material_name),h("td",{style:s.td},h(Tag,null,r.color)),
+            h("td",{style:Object.assign({},s.td,{fontFamily:"monospace"})},num(r.issued)),
+            h("td",{style:Object.assign({},s.td,{fontFamily:"monospace"})},num(r.consumed)),
+            h("td",{style:Object.assign({},s.td,{fontFamily:"monospace",color:r.balance<0?"#DC2626":"#059669",fontWeight:700})},num(r.balance))
+          ))
+        }):h("div",{style:{color:"#78716C",fontSize:13}},"No material issued yet.")
+      ),
+      h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}},
+        h("div",{style:s.card},
+          h("div",{style:{fontWeight:700,marginBottom:8}},"Production"),
+          wProd.length?wProd.slice().reverse().map(r=>{
+            const p=(data.products||[]).find(x=>x.id===r.product_id)||{};
+            return h("div",{key:r.id,style:{display:"flex",justifyContent:"space-between",fontSize:13,padding:"3px 0",borderBottom:"1px solid #E7E5E4"}},
+              h("span",null,r.date+" - "+p.name+" "+p.color),
+              h("span",{style:{fontFamily:"monospace"}},r.quantity+" doz / "+fmt(r.wage_earned))
+            );
+          }):h("div",{style:{color:"#78716C",fontSize:13}},"No production yet.")
+        ),
+        h("div",{style:s.card},
+          h("div",{style:{fontWeight:700,marginBottom:8}},"Advances"),
+          wAdv.length?wAdv.slice().reverse().map(r=>
+            h("div",{key:r.id,style:{display:"flex",justifyContent:"space-between",fontSize:13,padding:"3px 0",borderBottom:"1px solid #E7E5E4"}},
+              h("span",null,r.date+(r.note?" - "+r.note:"")),
+              h("span",{style:{fontFamily:"monospace",color:"#DC2626"}},fmt(r.amount))
+            )
+          ):h("div",{style:{color:"#78716C",fontSize:13}},"No advances yet.")
+        )
+      )
+    ),
+    !sel&&h("div",{style:{color:"#78716C",textAlign:"center",padding:32}},"Select a worker above.")
+  );
+}
+
+function PurchTab({data,db,refresh}){
+  const{suppliers=[],raw_materials=[],purchases=[]}=data;
+  const[form,setForm]=useState({date:today(),supplier_id:"",material_id:"",quantity:0,rate:0});
+  const total=+form.quantity*+form.rate;
+  const save=()=>refresh(async()=>{
+    if(!form.supplier_id||!form.material_id)throw new Error("Pick supplier and material");
+    const{error}=await db.from("purchases").insert([Object.assign({},form,{supplier_id:+form.supplier_id,material_id:+form.material_id,quantity:+form.quantity,rate:+form.rate,total_value:total})]);
+    if(error)throw error;
+  });
+  const del=id=>refresh(async()=>{const{error}=await db.from("purchases").delete().eq("id",id);if(error)throw error;});
+  return h("div",{style:{display:"flex",flexDirection:"column",gap:16}},
+    h("h2",{style:{fontSize:18,fontWeight:700,color:"#92400E"}},"Purchases"),
+    h("div",{style:Object.assign({},s.card,{display:"flex",flexDirection:"column",gap:10})},
+      h(Grid,{cols:2},
+        h(Fld,{label:"Date"},h(Inp,{type:"date",value:form.date,onChange:ev=>setForm(Object.assign({},form,{date:ev.target.value}))})),
+        h(Fld,{label:"Supplier"},h(Sel,{value:form.supplier_id,onChange:ev=>setForm(Object.assign({},form,{supplier_id:ev.target.value}))},
+          h("option",{value:""},"-- pick --"),
+          ...suppliers.map(s2=>h("option",{key:s2.id,value:s2.id},s2.name)))),
+        h(Fld,{label:"Material"},h(Sel,{value:form.material_id,onChange:ev=>setForm(Object.assign({},form,{material_id:ev.target.value}))},
+          h("option",{value:""},"-- pick --"),
+          ...raw_materials.map(r=>h("option",{key:r.id,value:r.id},r.display_name)))),
+        h(Fld,{label:"Quantity"},h(Inp,{type:"number",value:form.quantity,onChange:ev=>setForm(Object.assign({},form,{quantity:+ev.target.value}))})),
+        h(Fld,{label:"Rate (Rs.)"},h(Inp,{type:"number",value:form.rate,onChange:ev=>setForm(Object.assign({},form,{rate:+ev.target.value}))})),
+        h("div",{style:{display:"flex",alignItems:"flex-end",fontSize:13,color:"#78716C"}},"Total: ",h("b",{style:{marginLeft:4,fontFamily:"monospace",color:"#1C1917"}},fmt(total)))
+      ),
+      h(Btn,{onClick:save},"+ Add Purchase")
+    ),
+    h(Tbl,{heads:["Date","Supplier","Material","Qty","Rate","Total",""],
+      rows:purchases.slice().reverse().map(r=>{
+        const sup=suppliers.find(x=>x.id===r.supplier_id)||{};
+        const m=raw_materials.find(x=>x.id===r.material_id)||{};
+        return h("tr",{key:r.id},
+          h("td",{style:s.td},r.date),h("td",{style:s.td},sup.name||"?"),h("td",{style:s.td},(m.display_name||"?")),
+          h("td",{style:Object.assign({},s.td,{fontFamily:"monospace"})},r.quantity),
+          h("td",{style:Object.assign({},s.td,{fontFamily:"monospace"})},fmt(r.rate)),
+          h("td",{style:Object.assign({},s.td,{fontFamily:"monospace",fontWeight:600})},fmt(r.total_value)),
+          h("td",{style:s.td},h(Del,{onClick:()=>del(r.id)},"X"))
+        );
+      })
+    })
+  );
+}
+
+function SuppTab({data,db,refresh}){
+  const{suppliers=[],purchases=[],supplier_payments=[]}=data;
+  const[form,setForm]=useState({name:"",contact:"",opening_balance:0});
+  const save=()=>refresh(async()=>{if(!form.name)throw new Error("Name required");const{error}=await db.from("suppliers").insert([form]);if(error)throw error;});
+  const del=id=>refresh(async()=>{const{error}=await db.from("suppliers").delete().eq("id",id);if(error)throw error;});
+  const bal=sup=>+(sup.opening_balance||0)+purchases.filter(r=>r.supplier_id===sup.id).reduce((a,r)=>a++(r.total_value||0),0)-supplier_payments.filter(r=>r.supplier_id===sup.id).reduce((a,r)=>a++(r.amount||0),0);
+  return h("div",{style:{display:"flex",flexDirection:"column",gap:16}},
+    h("h2",{style:{fontSize:18,fontWeight:700,color:"#92400E"}},"Suppliers"),
+    h("div",{style:Object.assign({},s.card,{display:"flex",flexDirection:"column",gap:10})},
+      h(Grid,{cols:3},
+        h(Fld,{label:"Name"},h(Inp,{value:form.name,onChange:ev=>setForm(Object.assign({},form,{name:ev.target.value}))})),
+        h(Fld,{label:"Contact"},h(Inp,{value:form.contact,onChange:ev=>setForm(Object.assign({},form,{contact:ev.target.value}))})),
+        h(Fld,{label:"Opening Balance"},h(Inp,{type:"number",value:form.opening_balance,onChange:ev=>setForm(Object.assign({},form,{opening_balance:+ev.target.value}))}))
+      ),
+      h(Btn,{onClick:save},"+ Add Supplier")
+    ),
+    h(Tbl,{heads:["Name","Contact","Opening","Purchased","Paid","Balance",""],
+      rows:suppliers.map(sup=>{
+        const b=purchases.filter(r=>r.supplier_id===sup.id).reduce((a,r)=>a++(r.total_value||0),0);
+        const p=supplier_payments.filter(r=>r.supplier_id===sup.id).reduce((a,r)=>a++(r.amount||0),0);
+        const balance=bal(sup);
+        return h("tr",{key:sup.id},
+          h("td",{style:s.td},sup.name),h("td",{style:s.td},sup.contact),
+          h("td",{style:Object.assign({},s.td,{fontFamily:"monospace"})},fmt(sup.opening_balance)),
+          h("td",{style:Object.assign({},s.td,{fontFamily:"monospace"})},fmt(b)),
+          h("td",{style:Object.assign({},s.td,{fontFamily:"monospace",color:"#059669"})},fmt(p)),
+          h("td",{style:Object.assign({},s.td,{fontFamily:"monospace",fontWeight:700,color:balance>0?"#DC2626":"#059669"})},fmt(balance)),
+          h("td",{style:s.td},h(Del,{onClick:()=>del(sup.id)},"X"))
+        );
+      })
+    })
+  );
+}
+
+function CustTab({data,db,refresh}){
+  const{customers=[],sales=[],payments=[]}=data;
+  const[form,setForm]=useState({name:"",contact:"",opening_balance:0});
+  const save=()=>refresh(async()=>{if(!form.name)throw new Error("Name required");const{error}=await db.from("customers").insert([form]);if(error)throw error;});
+  const del=id=>refresh(async()=>{const{error}=await db.from("customers").delete().eq("id",id);if(error)throw error;});
+  const bal=c=>+(c.opening_balance||0)+sales.filter(r=>r.customer_id===c.id).reduce((a,r)=>a++(r.net_total||0),0)-payments.filter(r=>r.customer_id===c.id).reduce((a,r)=>a++(r.amount||0),0);
+  return h("div",{style:{display:"flex",flexDirection:"column",gap:16}},
+    h("h2",{style:{fontSize:18,fontWeight:700,color:"#92400E"}},"Customers"),
+    h("div",{style:Object.assign({},s.card,{display:"flex",flexDirection:"column",gap:10})},
+      h(Grid,{cols:3},
+        h(Fld,{label:"Name"},h(Inp,{value:form.name,onChange:ev=>setForm(Object.assign({},form,{name:ev.target.value}))})),
+        h(Fld,{label:"Contact"},h(Inp,{value:form.contact,onChange:ev=>setForm(Object.assign({},form,{contact:ev.target.value}))})),
+        h(Fld,{label:"Opening Balance"},h(Inp,{type:"number",value:form.opening_balance,onChange:ev=>setForm(Object.assign({},form,{opening_balance:+ev.target.value}))}))
+      ),
+      h(Btn,{onClick:save},"+ Add Customer")
+    ),
+    h(Tbl,{heads:["Name","Contact","Opening","Total Sold","Received","Balance Due",""],
+      rows:customers.map(c=>{
+        const sold=sales.filter(r=>r.customer_id===c.id).reduce((a,r)=>a++(r.net_total||0),0);
+        const recd=payments.filter(r=>r.customer_id===c.id).reduce((a,r)=>a++(r.amount||0),0);
+        const balance=bal(c);
+        return h("tr",{key:c.id},
+          h("td",{style:s.td},c.name),h("td",{style:s.td},c.contact),
+          h("td",{style:Object.assign({},s.td,{fontFamily:"monospace"})},fmt(c.opening_balance)),
+          h("td",{style:Object.assign({},s.td,{fontFamily:"monospace"})},fmt(sold)),
+          h("td",{style:Object.assign({},s.td,{fontFamily:"monospace",color:"#059669"})},fmt(recd)),
+          h("td",{style:Object.assign({},s.td,{fontFamily:"monospace",fontWeight:700,color:balance>0?"#DC2626":"#059669"})},fmt(balance)),
+          h("td",{style:s.td},h(Del,{onClick:()=>del(c.id)},"X"))
+        );
+      })
+    })
+  );
+}
+
+function SalesTab({data,db,refresh}){
+  const{customers=[],products=[],sales=[],production=[]}=data;
+  const[form,setForm]=useState({date:today(),customer_id:"",product_id:"",quantity:0,rate:0,discount:0});
+  const stock=pid=>{const p=products.find(x=>x.id===+pid);if(!p)return 0;return +(p.opening_stock||0)+production.filter(r=>r.product_id===+pid).reduce((s,r)=>s++(r.quantity||0),0)-sales.filter(r=>r.product_id===+pid).reduce((s,r)=>s++(r.quantity||0),0);};
+  const net=+form.quantity*+form.rate-+form.discount;
+  const save=()=>refresh(async()=>{
+    if(!form.customer_id||!form.product_id)throw new Error("Pick customer and product");
+    const{error}=await db.from("sales").insert([Object.assign({},form,{customer_id:+form.customer_id,product_id:+form.product_id,quantity:+form.quantity,rate:+form.rate,discount:+form.discount,net_total:net})]);
+    if(error)throw error;
+  });
+  const del=id=>refresh(async()=>{const{error}=await db.from("sales").delete().eq("id",id);if(error)throw error;});
+  return h("div",{style:{display:"flex",flexDirection:"column",gap:16}},
+    h("h2",{style:{fontSize:18,fontWeight:700,color:"#92400E"}},"Sales"),
+    h("div",{style:Object.assign({},s.card,{display:"flex",flexDirection:"column",gap:10})},
+      h(Grid,{cols:3},
+        h(Fld,{label:"Date"},h(Inp,{type:"date",value:form.date,onChange:ev=>setForm(Object.assign({},form,{date:ev.target.value}))})),
+        h(Fld,{label:"Customer"},h(Sel,{value:form.customer_id,onChange:ev=>setForm(Object.assign({},form,{customer_id:ev.target.value}))},
+          h("option",{value:""},"-- pick --"),
+          ...customers.map(c=>h("option",{key:c.id,value:c.id},c.name)))),
+        h(Fld,{label:"Product"},h(Sel,{value:form.product_id,onChange:ev=>{const p=products.find(x=>x.id===+ev.target.value)||{};setForm(Object.assign({},form,{product_id:ev.target.value,rate:p.selling_price||0}));} },
+          h("option",{value:""},"-- pick --"),
+          ...products.map(p=>h("option",{key:p.id,value:p.id},p.name+" - "+p.color+" ("+stock(p.id)+")")))),
+        h(Fld,{label:"Quantity (doz)"},h(Inp,{type:"number",value:form.quantity,onChange:ev=>setForm(Object.assign({},form,{quantity:+ev.target.value}))})),
+        h(Fld,{label:"Rate (Rs.)"},h(Inp,{type:"number",value:form.rate,onChange:ev=>setForm(Object.assign({},form,{rate:+ev.target.value}))})),
+        h(Fld,{label:"Discount (Rs.)"},h(Inp,{type:"number",value:form.discount,onChange:ev=>setForm(Object.assign({},form,{discount:+ev.target.value}))}))
+      ),
+      h("div",{style:{fontSize:13,color:"#78716C"}},"Net Total: ",h("b",{style:{fontFamily:"monospace",color:"#1C1917"}},fmt(net))),
+      h(Btn,{onClick:save},"+ Save Sale")
+    ),
+    h(Tbl,{heads:["Date","Customer","Product","Qty","Rate","Discount","Net Total",""],
+      rows:sales.slice().reverse().map(r=>{
+        const c=customers.find(x=>x.id===r.customer_id)||{};
+        const p=products.find(x=>x.id===r.product_id)||{};
+        return h("tr",{key:r.id},
+          h("td",{style:s.td},r.date),h("td",{style:s.td},c.name||"?"),
+          h("td",{style:s.td},p.name||"?"," ",h(Tag,null,p.color)),
+          h("td",{style:Object.assign({},s.td,{fontFamily:"monospace"})},r.quantity),
+          h("td",{style:Object.assign({},s.td,{fontFamily:"monospace"})},fmt(r.rate)),
+          h("td",{style:Object.assign({},s.td,{fontFamily:"monospace",color:+r.discount?"#D97706":"inherit"})},fmt(r.discount)),
+          h("td",{style:Object.assign({},s.td,{fontFamily:"monospace",fontWeight:700})},fmt(r.net_total)),
+          h("td",{style:s.td},h(Del,{onClick:()=>del(r.id)},"X"))
+        );
+      })
+    })
+  );
+}
+
+function PayTab({data,db,refresh}){
+  const{customers=[],payments=[]}=data;
+  const[form,setForm]=useState({date:today(),customer_id:"",amount:0,note:""});
+  const save=()=>refresh(async()=>{
+    if(!form.customer_id)throw new Error("Pick customer");
+    const{error}=await db.from("payments").insert([Object.assign({},form,{customer_id:+form.customer_id,amount:+form.amount})]);
+    if(error)throw error;
+  });
+  const del=id=>refresh(async()=>{const{error}=await db.from("payments").delete().eq("id",id);if(error)throw error;});
+  return h("div",{style:{display:"flex",flexDirection:"column",gap:16}},
+    h("h2",{style:{fontSize:18,fontWeight:700,color:"#92400E"}},"Payments from Customers"),
+    h("div",{style:Object.assign({},s.card,{display:"flex",flexDirection:"column",gap:10})},
+      h(Grid,{cols:2},
+        h(Fld,{label:"Date"},h(Inp,{type:"date",value:form.date,onChange:ev=>setForm(Object.assign({},form,{date:ev.target.value}))})),
+        h(Fld,{label:"Customer"},h(Sel,{value:form.customer_id,onChange:ev=>setForm(Object.assign({},form,{customer_id:ev.target.value}))},
+          h("option",{value:""},"-- pick --"),
+          ...customers.map(c=>h("option",{key:c.id,value:c.id},c.name)))),
+        h(Fld,{label:"Amount (Rs.)"},h(Inp,{type:"number",value:form.amount,onChange:ev=>setForm(Object.assign({},form,{amount:+ev.target.value}))})),
+        h(Fld,{label:"Note"},h(Inp,{value:form.note,onChange:ev=>setForm(Object.assign({},form,{note:ev.target.value}))}))
+      ),
+      h(Btn,{onClick:save},"+ Add Payment")
+    ),
+    h(Tbl,{heads:["Date","Customer","Amount","Note",""],
+      rows:payments.slice().reverse().map(r=>{
+        const c=customers.find(x=>x.id===r.customer_id)||{};
+        return h("tr",{key:r.id},
+          h("td",{style:s.td},r.date),h("td",{style:s.td},c.name||"?"),
+          h("td",{style:Object.assign({},s.td,{fontFamily:"monospace",color:"#059669",fontWeight:600})},fmt(r.amount)),
+          h("td",{style:s.td},r.note),
+          h("td",{style:s.td},h(Del,{onClick:()=>del(r.id)},"X"))
+        );
+      })
+    })
+  );
+}
+
+function SPayTab({data,db,refresh}){
+  const{suppliers=[],supplier_payments=[]}=data;
+  const[form,setForm]=useState({date:today(),supplier_id:"",amount:0,note:""});
+  const save=()=>refresh(async()=>{
+    if(!form.supplier_id)throw new Error("Pick supplier");
+    const{error}=await db.from("supplier_payments").insert([Object.assign({},form,{supplier_id:+form.supplier_id,amount:+form.amount})]);
+    if(error)throw error;
+  });
+  const del=id=>refresh(async()=>{const{error}=await db.from("supplier_payments").delete().eq("id",id);if(error)throw error;});
+  return h("div",{style:{display:"flex",flexDirection:"column",gap:16}},
+    h("h2",{style:{fontSize:18,fontWeight:700,color:"#92400E"}},"Payments to Suppliers"),
+    h("div",{style:Object.assign({},s.card,{display:"flex",flexDirection:"column",gap:10})},
+      h(Grid,{cols:2},
+        h(Fld,{label:"Date"},h(Inp,{type:"date",value:form.date,onChange:ev=>setForm(Object.assign({},form,{date:ev.target.value}))})),
+        h(Fld,{label:"Supplier"},h(Sel,{value:form.supplier_id,onChange:ev=>setForm(Object.assign({},form,{supplier_id:ev.target.value}))},
+          h("option",{value:""},"-- pick --"),
+          ...suppliers.map(sup=>h("option",{key:sup.id,value:sup.id},sup.name)))),
+        h(Fld,{label:"Amount (Rs.)"},h(Inp,{type:"number",value:form.amount,onChange:ev=>setForm(Object.assign({},form,{amount:+ev.target.value}))})),
+        h(Fld,{label:"Note"},h(Inp,{value:form.note,onChange:ev=>setForm(Object.assign({},form,{note:ev.target.value}))}))
+      ),
+      h(Btn,{onClick:save},"+ Add Payment")
+    ),
+    h(Tbl,{heads:["Date","Supplier","Amount","Note",""],
+      rows:supplier_payments.slice().reverse().map(r=>{
+        const sup=suppliers.find(x=>x.id===r.supplier_id)||{};
+        return h("tr",{key:r.id},
+          h("td",{style:s.td},r.date),h("td",{style:s.td},sup.name||"?"),
+          h("td",{style:Object.assign({},s.td,{fontFamily:"monospace",color:"#DC2626",fontWeight:600})},fmt(r.amount)),
+          h("td",{style:s.td},r.note),
+          h("td",{style:s.td},h(Del,{onClick:()=>del(r.id)},"X"))
+        );
+      })
+    })
+  );
+}
+
+function ExpTab({data,db,refresh}){
+  const{expenses=[]}=data;
+  const CATS=["Rent","Electricity","Transport","Maintenance","Marketing","Misc"];
+  const[form,setForm]=useState({date:today(),category:"Rent",amount:0,note:""});
+  const save=()=>refresh(async()=>{const{error}=await db.from("expenses").insert([Object.assign({},form,{amount:+form.amount})]);if(error)throw error;});
+  const del=id=>refresh(async()=>{const{error}=await db.from("expenses").delete().eq("id",id);if(error)throw error;});
+  return h("div",{style:{display:"flex",flexDirection:"column",gap:16}},
+    h("h2",{style:{fontSize:18,fontWeight:700,color:"#92400E"}},"Expenses"),
+    h("div",{style:Object.assign({},s.card,{display:"flex",flexDirection:"column",gap:10})},
+      h(Grid,{cols:2},
+        h(Fld,{label:"Date"},h(Inp,{type:"date",value:form.date,onChange:ev=>setForm(Object.assign({},form,{date:ev.target.value}))})),
+        h(Fld,{label:"Category"},h(Sel,{value:form.category,onChange:ev=>setForm(Object.assign({},form,{category:ev.target.value}))},
+          ...CATS.map(c=>h("option",{key:c},c)))),
+        h(Fld,{label:"Amount (Rs.)"},h(Inp,{type:"number",value:form.amount,onChange:ev=>setForm(Object.assign({},form,{amount:+ev.target.value}))})),
+        h(Fld,{label:"Note"},h(Inp,{value:form.note,onChange:ev=>setForm(Object.assign({},form,{note:ev.target.value}))}))
+      ),
+      h(Btn,{onClick:save},"+ Add Expense")
+    ),
+    h(Tbl,{heads:["Date","Category","Amount","Note",""],
+      rows:expenses.slice().reverse().map(ex=>h("tr",{key:ex.id},
+        h("td",{style:s.td},ex.date),h("td",{style:s.td},ex.category),
+        h("td",{style:Object.assign({},s.td,{fontFamily:"monospace"})},fmt(ex.amount)),
+        h("td",{style:s.td},ex.note),
+        h("td",{style:s.td},h(Del,{onClick:()=>del(ex.id)},"X"))
+      ))
+    })
+  );
+}
+
+function RepTab({data}){
+  const[period,setPeriod]=useState(29);
+  const PERIODS=[{l:"Daily",d:0},{l:"Weekly",d:6},{l:"Fortnightly",d:14},{l:"Monthly",d:29},{l:"Annual",d:364}];
+  const{sales=[],expenses=[],production=[],purchases=[],raw_materials=[],products=[],payments=[],supplier_payments=[],suppliers=[],customers=[]}=data;
+  const pS=sales.filter(r=>inRange(r.date,period));
+  const pE=expenses.filter(r=>inRange(r.date,period));
+  const pP=production.filter(r=>inRange(r.date,period));
+  const revenue=pS.reduce((s,r)=>s++(r.net_total||0),0);
+  const discounts=pS.reduce((s,r)=>s++(r.discount||0),0);
+  const overheads=pE.reduce((s,r)=>s++(r.amount||0),0)+discounts;
+  const wages=pP.reduce((s,r)=>s++(r.wage_earned||0),0);
+  const rawVal=raw_materials.reduce((s,r)=>s++(r.opening_stock||0)*+(r.cost_per_unit||0),0);
+  const custBal=customers.reduce((s,c)=>{const sold=sales.filter(r=>r.customer_id===c.id).reduce((a,r)=>a++(r.net_total||0),0);const paid=payments.filter(r=>r.customer_id===c.id).reduce((a,r)=>a++(r.amount||0),0);return s++(c.opening_balance||0)+sold-paid;},0);
+  const suppBal=suppliers.reduce((s,sup)=>{const b=purchases.filter(r=>r.supplier_id===sup.id).reduce((a,r)=>a++(r.total_value||0),0);const p=supplier_payments.filter(r=>r.supplier_id===sup.id).reduce((a,r)=>a++(r.amount||0),0);return s++(sup.opening_balance||0)+b-p;},0);
+  const nwc=rawVal+custBal-suppBal++(data.settings&&data.settings.cash_in_hand||0);
+  const gross=revenue-wages;
+  const net=gross-overheads;
+  const margin=revenue?(net/revenue*100).toFixed(1):"--";
+  const roi=nwc?(net/nwc*100).toFixed(2):"--";
+  const units=pP.reduce((s,r)=>s++(r.quantity||0),0);
+  const unitsSold=pS.reduce((s,r)=>s++(r.quantity||0),0);
+  const TR=(label,val,bold,green,red)=>h("tr",null,
+    h("td",{style:s.td},label),
+    h("td",{style:Object.assign({},s.td,{textAlign:"right",fontFamily:"monospace",fontWeight:bold?700:400,color:green?"#059669":red?"#DC2626":"#1C1917"})},val)
+  );
+  return h("div",{style:{display:"flex",flexDirection:"column",gap:20}},
+    h("div",{style:{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:8}},
+      h("h2",{style:{fontSize:18,fontWeight:700,color:"#92400E"}},"Reports"),
+      h("div",{style:{display:"flex",gap:4,flexWrap:"wrap"}},
+        ...PERIODS.map(p=>h("button",{key:p.d,onClick:()=>setPeriod(p.d),
+          style:{padding:"5px 10px",borderRadius:20,border:"1px solid #E7E5E4",background:period===p.d?"#B45309":"#fff",color:period===p.d?"#fff":"#78716C",fontSize:11,fontWeight:600,cursor:"pointer"}},p.l))
+      )
+    ),
+    h("div",{style:{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12}},
+      h(Card,{title:"Net Profit",value:fmt(net),green:net>0,red:net<0,sub:"Margin "+margin+"%"}),
+      h(Card,{title:"Revenue",value:fmt(revenue),sub:pS.length+" sales - "+unitsSold+" doz"}),
+      h(Card,{title:"Wages",value:fmt(wages),sub:units+" doz produced"}),
+      h(Card,{title:"Overheads+Discounts",value:fmt(overheads),sub:"Discounts: "+fmt(discounts)}),
+      h(Card,{title:"Net Working Capital",value:fmt(nwc),green:nwc>0,sub:"Stock+Recv-Pay+Cash"}),
+      h(Card,{title:"ROI",value:roi==="--"?"--":roi+"%",green:+roi>0,sub:"Net Profit / NWC"})
+    ),
+    h("div",{style:s.card},
+      h("div",{style:{fontWeight:700,marginBottom:12}},"Profit & Loss"),
+      h("table",{style:{width:"100%",borderCollapse:"collapse"}},
+        h("tbody",null,
+          TR("Sales Revenue (net of discounts)",fmt(revenue)),
+          TR("Wage Cost","- "+fmt(wages)),
+          TR("Gross Profit",fmt(gross),true,gross>0,gross<0),
+          TR("Overheads & Discounts","- "+fmt(overheads)),
+          TR("Net Profit",fmt(net),true,net>0,net<0),
+          TR("Profit Margin %",margin==="--"?"--":margin+"%",false,false,false)
+        )
+      )
+    ),
+    h("div",{style:{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}},
+      h("div",{style:s.card},
+        h("div",{style:{fontWeight:700,marginBottom:10}},"Customer Balances"),
+        ...customers.map(c=>{
+          const sold=sales.filter(r=>r.customer_id===c.id).reduce((a,r)=>a++(r.net_total||0),0);
+          const paid=payments.filter(r=>r.customer_id===c.id).reduce((a,r)=>a++(r.amount||0),0);
+          const bal=+(c.opening_balance||0)+sold-paid;
+          return h("div",{key:c.id,style:{display:"flex",justifyContent:"space-between",fontSize:13,padding:"4px 0",borderBottom:"1px solid #E7E5E4"}},
+            h("span",null,c.name),h("span",{style:{fontFamily:"monospace",color:bal>0?"#DC2626":"#059669",fontWeight:600}},fmt(bal))
+          );
+        }),
+        !customers.length&&h("div",{style:{color:"#78716C",fontSize:13}},"No customers.")
+      ),
+      h("div",{style:s.card},
+        h("div",{style:{fontWeight:700,marginBottom:10}},"Supplier Balances"),
+        ...suppliers.map(sup=>{
+          const b=purchases.filter(r=>r.supplier_id===sup.id).reduce((a,r)=>a++(r.total_value||0),0);
+          const p=supplier_payments.filter(r=>r.supplier_id===sup.id).reduce((a,r)=>a++(r.amount||0),0);
+          const bal=+(sup.opening_balance||0)+b-p;
+          return h("div",{key:sup.id,style:{display:"flex",justifyContent:"space-between",fontSize:13,padding:"4px 0",borderBottom:"1px solid #E7E5E4"}},
+            h("span",null,sup.name),h("span",{style:{fontFamily:"monospace",color:bal>0?"#DC2626":"#059669",fontWeight:600}},fmt(bal))
+          );
+        }),
+        !suppliers.length&&h("div",{style:{color:"#78716C",fontSize:13}},"No suppliers.")
+      )
+    )
+  );
+}
+
+function SettTab({data,db,refresh}){
+  const{categories=[]}=data;
+  const[biz,setBiz]=useState((data.settings&&data.settings.business_name)||"");
+  const[cash,setCash]=useState((data.settings&&data.settings.cash_in_hand)||0);
+  const save=()=>refresh(async()=>{const{error}=await db.from("settings").update({business_name:biz,cash_in_hand:+cash}).eq("id",1);if(error)throw error;});
+  const updCat=(id,f,v)=>refresh(async()=>{const{error}=await db.from("categories").update({[f]:+v}).eq("id",id);if(error)throw error;});
+  return h("div",{style:{display:"flex",flexDirection:"column",gap:20}},
+    h("h2",{style:{fontSize:18,fontWeight:700,color:"#92400E"}},"Settings"),
+    h("div",{style:Object.assign({},s.card,{display:"flex",flexDirection:"column",gap:10})},
+      h("div",{style:{fontWeight:700}},"Business"),
+      h(Fld,{label:"Business Name"},h(Inp,{value:biz,onChange:ev=>setBiz(ev.target.value)})),
+      h(Fld,{label:"Cash in Hand (Rs.)"},h(Inp,{type:"number",value:cash,onChange:ev=>setCash(ev.target.value)})),
+      h(Btn,{onClick:save},"Save")
+    ),
+    h("div",{style:s.card},
+      h("div",{style:{fontWeight:700,marginBottom:8}},"Categories — Material Averages & Wage Rate"),
+      h("div",{style:{fontSize:12,color:"#78716C",marginBottom:10}},"Edit values below and click away to save. These per-piece averages apply to all products in that category."),
+      h(Tbl,{heads:["Category","Ragzine/pc","Mash/pc","Daimod/pc","Naki Feeta/pc","Pipe/pc","Wage/pc"],
+        rows:categories.map(c=>h("tr",{key:c.id},
+          h("td",{style:Object.assign({},s.td,{fontWeight:700})},c.name),
+          ...["ragzine_per_pc","mash_per_pc","daimod_per_pc","naki_feeta_per_pc","pipe_per_pc","wage_rate"].map(f=>
+            h("td",{key:f,style:s.td},h(Inp,{type:"number",defaultValue:c[f],onBlur:ev=>updCat(c.id,f,ev.target.value),style:Object.assign({},s.inp,{width:80})}))
+          )
+        ))
+      })
+    )
+  );
+}
+
+createRoot(document.getElementById("root")).render(h(StrictMode,null,h(App)));
+</script>
+</body>
+</html>
