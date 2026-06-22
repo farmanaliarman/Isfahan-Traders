@@ -6,7 +6,7 @@
 <title>Isfahan Traders</title>
 <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:system-ui,-apple-system,sans-serif;background:#FAFAF9;color:#1C1917}
@@ -18,10 +18,10 @@ input,select,button{font-family:inherit}
 <script>
 const{createElement:h,useState,useEffect,useCallback,useRef,StrictMode}=React;
 const{createRoot}=ReactDOM;
-const db=supabase.createClient(
-  "https://qljqfiyamrmrxvcrwopy.supabase.co",
-  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsanFmaXlhbXJtcnh2Y3J3b3B5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5NzY5NTcsImV4cCI6MjA5NzU1Mjk1N30.smMb5JbjU5qVg8c0lXIeRcNCJMc8vWjiZVEuNIAXzy0"
-);
+var SB_URL = "https://qljqfiyamrmrxvcrwopy.supabase.co";
+var SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsanFmaXlhbXJtcnh2Y3J3b3B5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE5NzY5NTcsImV4cCI6MjA5NzU1Mjk1N30.smMb5JbjU5qVg8c0lXIeRcNCJMc8vWjiZVEuNIAXzy0";
+var createClient = supabase.createClient;
+var db = createClient(SB_URL, SB_KEY);
 
 const today=()=>new Date().toISOString().slice(0,10);
 const fmt=n=>"Rs."+(+(n||0)).toLocaleString("en-IN",{maximumFractionDigits:0});
